@@ -1,0 +1,72 @@
+     H DFTACTGRP(*NO) ACTGRP(*CALLER)
+      *----------------------------------------------------------------*
+      * CLMPRC - Price a validated claim.                              *
+      * Ingredient cost is the lower of AWP less the plan discount     *
+      * and the MAC price. The member copay comes from the plan tier.  *
+      *----------------------------------------------------------------*
+     FCLAIMS    UF   E           K DISK
+     FDRUGPRC   IF   E           K DISK
+     FPLANTIER  IF   E           K DISK
+      *
+     D CalcIngCost     PR            11P 2
+     D  pAwp                         11P 2 CONST
+     D  pMac                         11P 2 CONST
+     D  pDiscPct                      5P 3 CONST
+      *
+     D WkIngCost       S             11P 2
+     D WkCopay         S              9P 2
+      *
+     C     *ENTRY        PLIST
+     C                   PARM                    PClaimId         10
+      *
+     C     PClaimId      CHAIN     CLAIMS                             90
+     C                   IF        *IN90 OR CLSTAT <> 'V'
+     C                   SETON                                        LR
+     C                   RETURN
+     C                   ENDIF
+      *
+     C     CLNDC         CHAIN     DRUGPRC                            91
+     C     CLPLAN        CHAIN     PLANTIER                           92
+     C                   IF        *IN91 OR *IN92
+     C                   EVAL      CLSTAT = 'P'
+     C                   UPDATE    CLAIMSR
+     C                   SETON                                        LR
+     C                   RETURN
+     C                   ENDIF
+      *
+     C                   EVAL      WkIngCost = CalcIngCost(DPAWP * CLQTY :
+     C                                                     DPMAC * CLQTY :
+     C                                                     PTDISC)
+     C                   SELECT
+     C                   WHEN      DPTIER = 1
+     C                   EVAL      WkCopay = PTCOP1
+     C                   WHEN      DPTIER = 2
+     C                   EVAL      WkCopay = PTCOP2
+     C                   OTHER
+     C                   EVAL      WkCopay = PTCOP3
+     C                   ENDSL
+      *
+     C                   IF        WkCopay > WkIngCost
+     C                   EVAL      WkCopay = WkIngCost
+     C                   ENDIF
+      *
+     C                   EVAL      CLINGC = WkIngCost
+     C                   EVAL      CLCOPY = WkCopay
+     C                   EVAL      CLPLNP = WkIngCost - WkCopay
+     C                   EVAL      CLSTAT = 'A'
+     C                   UPDATE    CLAIMSR
+     C                   SETON                                        LR
+     C                   RETURN
+      *----------------------------------------------------------------*
+     P CalcIngCost     B
+     D CalcIngCost     PI            11P 2
+     D  pAwp                         11P 2 CONST
+     D  pMac                         11P 2 CONST
+     D  pDiscPct                      5P 3 CONST
+     D WkAwpNet        S             11P 2
+     C                   EVAL(H)   WkAwpNet = pAwp * (1 - pDiscPct)
+     C                   IF        pMac > 0 AND pMac < WkAwpNet
+     C                   RETURN    pMac
+     C                   ENDIF
+     C                   RETURN    WkAwpNet
+     P CalcIngCost     E

@@ -1,0 +1,44 @@
+> FUNCTION: Adjudicate Claim            TYPE: EXCEXTFUN
+> FILE:     Claim                       MODEL: CLMMDL
+> PURPOSE:  Run validation and pricing for one claim and record the outcome.
+>
+> PARAMETERS
+>   I  Claim ID                  CLCLID
+>   O  Adjudication Status       CLSTAT
+>
+.-
+.  Claim                 *  RTVOBJ  Retrieve Claim
+.  .  Claim ID           I  PAR.Claim ID
+.  .  Claim Status       O  LCL.Claim Status
+.  .  Member ID          O  LCL.Member ID
+.-
+.-CASE
+.|-LCL.Claim Status is *Not Found
+.|  PAR.Adjudication Status = CND.Error
+.|  <-- *QUIT
+.|-LCL.Claim Status is Rejected
+.|  PAR.Adjudication Status = CND.Rejected
+.|  <-- *QUIT
+.'-ENDCASE
+.-
+.  Claim                 *  EXCEXTFUN  Validate Claim (CLMVAL)
+.  .  Claim ID           I  PAR.Claim ID
+.  .  Result             O  LCL.Claim Status
+.-
+.-CASE
+.|-LCL.Claim Status is Validated
+.|  Claim                 *  EXCEXTFUN  Price Claim (CLMPRC)
+.|  .  Claim ID           I  PAR.Claim ID
+.|  Claim                 *  RTVOBJ  Retrieve Claim
+.|  .  Claim ID           I  PAR.Claim ID
+.|  .  Claim Status       O  LCL.Claim Status
+.'-ENDCASE
+.-
+.-CASE
+.|-LCL.Claim Status is Pended
+.|  Claim Audit           *  CRTOBJ  Write Audit Entry
+.|  .  Claim ID           I  PAR.Claim ID
+.|  .  Audit Reason       I  CON.MISSING PRICE OR PLAN TIER
+.'-ENDCASE
+.-
+.  PAR.Adjudication Status = LCL.Claim Status

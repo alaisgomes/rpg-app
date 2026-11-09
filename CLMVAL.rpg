@@ -1,0 +1,72 @@
+     H DATEDIT(*YMD) DFTACTGRP(*NO)
+      *----------------------------------------------------------------*
+      * CLMVAL - Validate a pharmacy claim before adjudication.        *
+      * Rejects a claim when the member is not eligible on the fill    *
+      * date or when the quantity exceeds the plan limit.              *
+      *----------------------------------------------------------------*
+     FCLAIMS    UF   E           K DISK
+     FMBRELIG   IF   E           K DISK
+     FPLANLIM   IF   E           K DISK
+     FCLMERR    O    E             DISK
+      *
+     D WkReject        S              1A   INZ('N')
+     D WkReason        S             30A
+     D WkMaxQty        S              7P 0
+      *
+     C     *ENTRY        PLIST
+     C                   PARM                    PClaimId         10
+     C                   PARM                    PResult           1
+      *
+     C     PClaimId      CHAIN     CLAIMS                             90
+     C                   IF        *IN90
+     C                   EVAL      PResult = 'E'
+     C                   RETURN
+     C                   ENDIF
+      *
+     C                   EXSR      ChkElig
+     C                   IF        WkReject = 'N'
+     C                   EXSR      ChkQty
+     C                   ENDIF
+      *
+     C                   IF        WkReject = 'Y'
+     C                   EVAL      CLSTAT = 'R'
+     C                   EVAL      ERCLID = PClaimId
+     C                   EVAL      ERRSN  = WkReason
+     C                   WRITE     CLMERRR
+     C                   ELSE
+     C                   EVAL      CLSTAT = 'V'
+     C                   ENDIF
+     C                   UPDATE    CLAIMSR
+     C                   EVAL      PResult = CLSTAT
+     C                   SETON                                        LR
+     C                   RETURN
+      *----------------------------------------------------------------*
+      * ChkElig - Member must be active on the fill date.               *
+      *----------------------------------------------------------------*
+     C     ChkElig       BEGSR
+     C     CLMBID        CHAIN     MBRELIG                            91
+     C                   SELECT
+     C                   WHEN      *IN91
+     C                   EVAL      WkReject = 'Y'
+     C                   EVAL      WkReason = 'MEMBER NOT FOUND'
+     C                   WHEN      CLFILD < MEEFFD OR CLFILD > METRMD
+     C                   EVAL      WkReject = 'Y'
+     C                   EVAL      WkReason = 'MEMBER NOT ELIGIBLE'
+     C                   ENDSL
+     C                   ENDSR
+      *----------------------------------------------------------------*
+      * ChkQty - Quantity dispensed must not exceed the plan limit.     *
+      *----------------------------------------------------------------*
+     C     ChkQty        BEGSR
+     C     PLKEY         KLIST
+     C                   KFLD                    MEPLAN
+     C                   KFLD                    CLNDC
+     C     PLKEY         CHAIN     PLANLIM                            92
+     C                   IF        NOT *IN92
+     C                   EVAL      WkMaxQty = PLMAXQ
+     C                   IF        CLQTY > WkMaxQty
+     C                   EVAL      WkReject = 'Y'
+     C                   EVAL      WkReason = 'QUANTITY LIMIT EXCEEDED'
+     C                   ENDIF
+     C                   ENDIF
+     C                   ENDSR

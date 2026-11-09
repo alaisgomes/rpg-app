@@ -1,0 +1,31 @@
+> FUNCTION: Build Member Outreach List   TYPE: EXCEXTFUN
+> FILE:     Member Eligibility           MODEL: CLMMDL
+> PURPOSE:  List members whose coverage ends within the outreach window.
+>
+> PARAMETERS
+>   I  Window Days               WNDAYS
+>   O  Members Written           MBRCNT
+>
+.-
+.  WRK.Window End Date = JOB.*Job date + PAR.Window Days *DAYS
+.  PAR.Members Written = CON.0
+.-
+.-REPEAT
+.|  Member Eligibility    *  RTVOBJ  Read Next Member
+.|  .  Member ID          O  LCL.Member ID
+.|  .  Plan ID            O  LCL.Plan ID
+.|  .  Termination Date   O  LCL.Termination Date
+.|-CASE
+.||-PGM.*Return code is *Record does not exist
+.||  <-- *QUIT
+.|'-ENDCASE
+.|-CASE
+.||-LCL.Termination Date is GE JOB.*Job date
+.||  AND LCL.Termination Date is LE WRK.Window End Date
+.||  Member Outreach       *  CRTOBJ  Add Outreach Entry
+.||  .  Member ID          I  LCL.Member ID
+.||  .  Plan ID            I  LCL.Plan ID
+.||  .  Termination Date   I  LCL.Termination Date
+.||  PAR.Members Written = PAR.Members Written + CON.1
+.|'-ENDCASE
+.'-ENDREPEAT

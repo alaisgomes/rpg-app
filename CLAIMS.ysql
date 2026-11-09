@@ -1,0 +1,44 @@
+-- CLAIMS - Pharmacy claim tables and the views adjudication reads.
+-- Status codes: N = new, V = validated, R = rejected, P = pend, A = adjudicated.
+
+CREATE TABLE CLAIMS (
+    CLCLID   CHAR(10)      NOT NULL,
+    CLMBID   CHAR(12)      NOT NULL,
+    CLPLAN   CHAR(6)       NOT NULL,
+    CLNDC    CHAR(11)      NOT NULL,
+    CLQTY    DECIMAL(9, 3) NOT NULL,
+    CLFILD   DATE          NOT NULL,
+    CLSTAT   CHAR(1)       NOT NULL DEFAULT 'N',
+    CLINGC   DECIMAL(11, 2),
+    CLCOPY   DECIMAL(9, 2),
+    CLPLNP   DECIMAL(11, 2),
+    CONSTRAINT CLAIMS_PK PRIMARY KEY (CLCLID),
+    CONSTRAINT CLAIMS_STAT_CK CHECK (CLSTAT IN ('N', 'V', 'R', 'P', 'A'))
+);
+
+CREATE INDEX CLAIMS_MBR_IX ON CLAIMS (CLMBID, CLFILD);
+
+CREATE TABLE CLMERR (
+    ERCLID   CHAR(10)  NOT NULL,
+    ERRSN    CHAR(30)  NOT NULL,
+    ERTS     TIMESTAMP NOT NULL DEFAULT CURRENT TIMESTAMP,
+    CONSTRAINT CLMERR_CLAIM_FK FOREIGN KEY (ERCLID) REFERENCES CLAIMS (CLCLID)
+);
+
+-- Claims waiting on a price: validated but not yet adjudicated.
+CREATE VIEW CLMPEND AS
+    SELECT C.CLCLID, C.CLMBID, C.CLNDC, C.CLQTY, C.CLFILD
+      FROM CLAIMS C
+     WHERE C.CLSTAT IN ('V', 'P');
+
+-- Daily plan spend, used by the finance extract.
+CREATE VIEW CLMDAYSPD AS
+    SELECT C.CLPLAN,
+           C.CLFILD,
+           COUNT(*)        AS CLAIM_COUNT,
+           SUM(C.CLINGC)   AS INGREDIENT_COST,
+           SUM(C.CLCOPY)   AS MEMBER_COPAY,
+           SUM(C.CLPLNP)   AS PLAN_PAID
+      FROM CLAIMS C
+     WHERE C.CLSTAT = 'A'
+     GROUP BY C.CLPLAN, C.CLFILD;
